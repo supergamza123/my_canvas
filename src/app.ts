@@ -41,7 +41,7 @@ export function mountApp(root: HTMLElement): void {
             <h2>Properties</h2>
             <div id="props" class="props">Nothing selected</div>
           </section>
-          <p class="hint">Space+drag pan · Wheel zoom · Shift brush straight · Del delete</p>
+          <p class="hint">Space+drag pan · Wheel zoom · Shift 비율고정 · Shift brush 직선 · Del delete</p>
         </aside>
       </div>
     </div>

@@ -247,10 +247,56 @@ export function hitHandle(b: AABB, p: { x: number; y: number }, zoom: number): H
   return best
 }
 
-export function resizeAABB(b: AABB, handle: HandleId, world: { x: number; y: number }): AABB {
+export function resizeAABB(
+  b: AABB,
+  handle: HandleId,
+  world: { x: number; y: number },
+  lockAspect = false,
+): AABB {
+  const aspect = b.w / Math.max(1e-6, b.h)
+  const left = b.x
+  const top = b.y
+  const right = b.x + b.w
+  const bottom = b.y + b.h
+  const cx = b.x + b.w / 2
+  const cy = b.y + b.h / 2
+
+  if (lockAspect) {
+    switch (handle) {
+      case 'se':
+        return aspectFromCorner({ x: left, y: top }, world, aspect, 1, 1)
+      case 'sw':
+        return aspectFromCorner({ x: right, y: top }, world, aspect, -1, 1)
+      case 'ne':
+        return aspectFromCorner({ x: left, y: bottom }, world, aspect, 1, -1)
+      case 'nw':
+        return aspectFromCorner({ x: right, y: bottom }, world, aspect, -1, -1)
+      case 'e': {
+        const w = Math.max(1, world.x - left)
+        const h = Math.max(1, w / aspect)
+        return { x: left, y: cy - h / 2, w, h }
+      }
+      case 'w': {
+        const w = Math.max(1, right - world.x)
+        const h = Math.max(1, w / aspect)
+        return { x: right - w, y: cy - h / 2, w, h }
+      }
+      case 's': {
+        const h = Math.max(1, world.y - top)
+        const w = Math.max(1, h * aspect)
+        return { x: cx - w / 2, y: top, w, h }
+      }
+      case 'n': {
+        const h = Math.max(1, bottom - world.y)
+        const w = Math.max(1, h * aspect)
+        return { x: cx - w / 2, y: bottom - h, w, h }
+      }
+    }
+  }
+
   let { x, y, w, h } = b
-  const r = x + w
-  const bot = y + h
+  const r = right
+  const bot = bottom
 
   switch (handle) {
     case 'nw':
@@ -299,5 +345,39 @@ export function resizeAABB(b: AABB, handle: HandleId, world: { x: number; y: num
   }
   return { x, y, w: Math.max(1, w), h: Math.max(1, h) }
 }
+
+/** Keep aspect while resizing from a fixed opposite corner. */
+function aspectFromCorner(
+  anchor: { x: number; y: number },
+  world: { x: number; y: number },
+  aspect: number,
+  signX: 1 | -1,
+  signY: 1 | -1,
+): AABB {
+  let tw = (world.x - anchor.x) * signX
+  let th = (world.y - anchor.y) * signY
+  tw = Math.max(1, tw)
+  th = Math.max(1, th)
+
+  const c1w = tw
+  const c1h = Math.max(1, tw / aspect)
+  const c2h = th
+  const c2w = Math.max(1, th * aspect)
+
+  const corner1 = { x: anchor.x + c1w * signX, y: anchor.y + c1h * signY }
+  const corner2 = { x: anchor.x + c2w * signX, y: anchor.y + c2h * signY }
+  const d1 = Math.hypot(corner1.x - world.x, corner1.y - world.y)
+  const d2 = Math.hypot(corner2.x - world.x, corner2.y - world.y)
+  const w = d1 <= d2 ? c1w : c2w
+  const h = d1 <= d2 ? c1h : c2h
+
+  return {
+    x: signX > 0 ? anchor.x : anchor.x - w,
+    y: signY > 0 ? anchor.y : anchor.y - h,
+    w,
+    h,
+  }
+}
+
 
 export { nodeBounds }

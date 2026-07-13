@@ -442,7 +442,12 @@ export class Editor {
         x: worldRaw.x - this.drag.grabOffset.x,
         y: worldRaw.y - this.drag.grabOffset.y,
       })
-      const newB = resizeAABB(this.drag.startBounds, this.drag.handle, target)
+      const newB = resizeAABB(
+        this.drag.startBounds,
+        this.drag.handle,
+        target,
+        this.shiftDown,
+      )
       const snapped = {
         x: snap(newB.x),
         y: snap(newB.y),
