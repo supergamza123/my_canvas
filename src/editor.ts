@@ -24,7 +24,7 @@ import {
   type TextNode,
   type ToolId,
 } from './nodes'
-import { hitHandle, resizeAABB, Renderer, type HandleId } from './render'
+import { handleCenters, hitHandle, resizeAABB, Renderer, type HandleId } from './render'
 
 export type AppStyle = {
   fill: string
@@ -54,6 +54,7 @@ type DragMode =
       handle: HandleId
       startBounds: { x: number; y: number; w: number; h: number }
       origins: Map<string, CanvasNode>
+      grabOffset: Vec2
     }
   | { kind: 'create-rect' | 'create-ellipse'; start: Vec2 }
   | { kind: 'create-line'; start: Vec2 }
@@ -348,11 +349,13 @@ export class Editor {
         this.history.beginGesture()
         const origins = new Map<string, CanvasNode>()
         for (const n of this.doc.selected) origins.set(n.id, structuredClone(n) as CanvasNode)
+        const hc = handleCenters(bounds)[handle]
         this.drag = {
           kind: 'resize',
           handle,
           startBounds: { ...bounds },
           origins,
+          grabOffset: { x: hitWorld.x - hc.x, y: hitWorld.y - hc.y },
         }
         return true
       }
@@ -434,7 +437,12 @@ export class Editor {
         Object.assign(n, structuredClone(origin))
       }
 
-      const newB = resizeAABB(this.drag.startBounds, this.drag.handle, world)
+      // Keep the grabbed handle under the cursor (minus initial grab offset)
+      const target = snapPoint({
+        x: worldRaw.x - this.drag.grabOffset.x,
+        y: worldRaw.y - this.drag.grabOffset.y,
+      })
+      const newB = resizeAABB(this.drag.startBounds, this.drag.handle, target)
       const snapped = {
         x: snap(newB.x),
         y: snap(newB.y),
@@ -466,8 +474,7 @@ export class Editor {
         }
       }
 
-      const snapRes = snapAABB(snapped, this.doc.nodes, this.doc.selectedIds)
-      this.setGuides(snapRes.guides)
+      this.setGuides([])
       this.doc.notify()
       return
     }

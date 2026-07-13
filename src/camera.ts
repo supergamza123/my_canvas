@@ -37,7 +37,18 @@ export class Camera {
     this.y += (after.y - before.y) * this.zoom
   }
 
-  apply(ctx: CanvasRenderingContext2D): void {
-    ctx.setTransform(this.zoom, 0, 0, this.zoom, this.x, this.y)
+  /**
+   * Map world → canvas buffer pixels.
+   * Camera x/y/zoom are in CSS pixels; multiply by dpr for HiDPI canvases.
+   */
+  apply(ctx: CanvasRenderingContext2D, dpr = 1): void {
+    ctx.setTransform(
+      this.zoom * dpr,
+      0,
+      0,
+      this.zoom * dpr,
+      this.x * dpr,
+      this.y * dpr,
+    )
   }
 }

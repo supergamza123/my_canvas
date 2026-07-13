@@ -8,7 +8,7 @@ import { nodeBounds, selectionBounds } from './nodes'
 
 export type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
-export const HANDLE_SIZE = 8
+export const HANDLE_SIZE = 10
 
 export class Renderer {
   needsRedraw = true
@@ -19,6 +19,7 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D
   private camera: Camera
   private doc: Document
+  private dpr = 1
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -52,19 +53,21 @@ export class Renderer {
   }
 
   resize(w: number, h: number, dpr: number): void {
+    this.dpr = dpr
     this.canvas.width = Math.floor(w * dpr)
     this.canvas.height = Math.floor(h * dpr)
     this.canvas.style.width = `${w}px`
     this.canvas.style.height = `${h}px`
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     this.mark()
   }
 
   private paint(): void {
-    const { ctx, canvas, camera, doc } = this
-    const dpr = window.devicePixelRatio || 1
+    const { ctx, canvas, camera, doc, dpr } = this
     const w = canvas.width / dpr
     const h = canvas.height / dpr
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     ctx.save()
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -72,10 +75,10 @@ export class Renderer {
     ctx.fillRect(0, 0, w, h)
     ctx.restore()
 
-    drawGrid(ctx, camera, w, h)
+    drawGrid(ctx, camera, w, h, dpr)
 
     ctx.save()
-    camera.apply(ctx)
+    camera.apply(ctx, dpr)
 
     for (const node of doc.nodes) {
       if (!node.visible) continue
@@ -229,8 +232,8 @@ export function handleCenters(b: AABB): Record<HandleId, { x: number; y: number 
 }
 
 export function hitHandle(b: AABB, p: { x: number; y: number }, zoom: number): HandleId | null {
-  // ~14px screen-space hit target so handles stay easy to grab at any zoom
-  const pad = 14 / zoom
+  // ~18px screen-space hit target
+  const pad = 18 / zoom
   const centers = handleCenters(b)
   let best: HandleId | null = null
   let bestDist = Infinity

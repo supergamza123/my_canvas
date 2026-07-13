@@ -5,6 +5,7 @@ export function drawGrid(
   camera: Camera,
   width: number,
   height: number,
+  dpr = 1,
 ): void {
   const z = camera.zoom
   if (z < 0.4) return
@@ -19,7 +20,7 @@ export function drawGrid(
   const startY = Math.floor(topLeft.y / step) * step
 
   ctx.save()
-  camera.apply(ctx)
+  camera.apply(ctx, dpr)
 
   for (let x = startX; x <= bottomRight.x; x += step) {
     const major = Math.round(x / step) % majorEvery === 0
