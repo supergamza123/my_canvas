@@ -265,7 +265,8 @@ export class Editor {
     if (e.button !== 0 && e.button !== 1) return
     this.canvas.setPointerCapture(e.pointerId)
     const screen = this.screenPos(e)
-    const world = snapPoint(this.worldPos(e))
+    const worldRaw = this.worldPos(e)
+    const world = snapPoint(worldRaw)
     const tool = e.button === 1 ? 'hand' : this.effectiveTool()
 
     if (tool === 'hand') {
@@ -274,8 +275,16 @@ export class Editor {
       return
     }
 
+    // Handles / existing nodes always win over create tools (Figma-like)
+    if (tool !== 'brush' && this.trySelectInteraction(worldRaw, world, e.shiftKey)) {
+      return
+    }
+
     if (tool === 'select') {
-      this.beginSelect(world, e.shiftKey)
+      // empty-canvas marquee / deselect
+      if (!e.shiftKey) this.doc.clearSelection()
+      this.drag = { kind: 'marquee', start: world, current: world }
+      this.hooks.onUiRefresh?.()
       return
     }
 
@@ -307,6 +316,7 @@ export class Editor {
         fill: this.style.fill === '#3b82f6' ? '#e5e7eb' : this.style.fill,
       }
       this.doc.addNode(node)
+      this.setTool('select')
       this.hooks.onRequestTextEdit?.(node)
       this.hooks.onUiRefresh?.()
       return
@@ -329,10 +339,11 @@ export class Editor {
     }
   }
 
-  private beginSelect(world: Vec2, shift: boolean): void {
+  /** Returns true if pointer started resize/move on selection or an existing node. */
+  private trySelectInteraction(hitWorld: Vec2, snapWorld: Vec2, shift: boolean): boolean {
     const bounds = selectionBounds(this.doc.selected)
     if (bounds && this.doc.selected.length > 0) {
-      const handle = hitHandle(bounds, world, this.camera.zoom)
+      const handle = hitHandle(bounds, hitWorld, this.camera.zoom)
       if (handle) {
         this.history.beginGesture()
         const origins = new Map<string, CanvasNode>()
@@ -343,26 +354,22 @@ export class Editor {
           startBounds: { ...bounds },
           origins,
         }
-        return
+        return true
       }
     }
 
-    const hit = hitTestTop(this.doc.nodes, world)
-    if (hit) {
-      if (shift) this.doc.toggleSelection(hit.id)
-      else if (!this.doc.selectedIds.has(hit.id)) this.doc.setSelection([hit.id])
+    const hit = hitTestTop(this.doc.nodes, hitWorld)
+    if (!hit) return false
 
-      this.history.beginGesture()
-      const origins = new Map<string, CanvasNode>()
-      for (const n of this.doc.selected) origins.set(n.id, structuredClone(n) as CanvasNode)
-      this.drag = { kind: 'move', start: world, origins }
-      this.hooks.onUiRefresh?.()
-      return
-    }
+    if (shift) this.doc.toggleSelection(hit.id)
+    else if (!this.doc.selectedIds.has(hit.id)) this.doc.setSelection([hit.id])
 
-    if (!shift) this.doc.clearSelection()
-    this.drag = { kind: 'marquee', start: world, current: world }
+    this.history.beginGesture()
+    const origins = new Map<string, CanvasNode>()
+    for (const n of this.doc.selected) origins.set(n.id, structuredClone(n) as CanvasNode)
+    this.drag = { kind: 'move', start: snapWorld, origins }
     this.hooks.onUiRefresh?.()
+    return true
   }
 
   private onPointerMove = (e: PointerEvent): void => {
@@ -434,13 +441,29 @@ export class Editor {
         w: Math.max(1, snap(newB.w)),
         h: Math.max(1, snap(newB.h)),
       }
-      const sx = snapped.w / this.drag.startBounds.w
-      const sy = snapped.h / this.drag.startBounds.h
+      const sw = Math.max(1, this.drag.startBounds.w)
+      const sh = Math.max(1, this.drag.startBounds.h)
+      const sx = snapped.w / sw
+      const sy = snapped.h / sh
 
-      for (const n of this.doc.selected) {
-        const o = this.drag.origins.get(n.id)
-        if (!o) continue
-        applyResizeFromOrigin(n, o, this.drag.startBounds, snapped, sx, sy)
+      // Single box-like node: write bounds directly (more stable than scale map)
+      if (this.doc.selected.length === 1) {
+        const n = this.doc.selected[0]
+        if (n.type === 'rect' || n.type === 'ellipse' || n.type === 'text') {
+          n.x = snapped.x
+          n.y = snapped.y
+          n.w = snapped.w
+          n.h = snapped.h
+        } else {
+          const o = this.drag.origins.get(n.id)
+          if (o) applyResizeFromOrigin(n, o, this.drag.startBounds, snapped, sx, sy)
+        }
+      } else {
+        for (const n of this.doc.selected) {
+          const o = this.drag.origins.get(n.id)
+          if (!o) continue
+          applyResizeFromOrigin(n, o, this.drag.startBounds, snapped, sx, sy)
+        }
       }
 
       const snapRes = snapAABB(snapped, this.doc.nodes, this.doc.selectedIds)
@@ -559,6 +582,7 @@ export class Editor {
           name: defaultName(type, this.countType(type)),
         } as RectNode | EllipseNode
         this.doc.addNode(node)
+        this.setTool('select')
       }
       this.history.endGesture()
       this.drag = { kind: 'none' }
@@ -578,6 +602,7 @@ export class Editor {
             name: defaultName('line', this.countType('line')),
           }
           this.doc.addNode(node)
+          this.setTool('select')
         }
       }
       this.history.endGesture()
@@ -589,6 +614,7 @@ export class Editor {
     if (this.drag.kind === 'brush') {
       this.history.endGesture()
       this.drag = { kind: 'none' }
+      this.setTool('select')
       this.hooks.onUiRefresh?.()
     }
   }

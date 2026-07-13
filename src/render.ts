@@ -229,13 +229,19 @@ export function handleCenters(b: AABB): Record<HandleId, { x: number; y: number 
 }
 
 export function hitHandle(b: AABB, p: { x: number; y: number }, zoom: number): HandleId | null {
-  const hs = HANDLE_SIZE / zoom
-  const pad = hs * 0.75
+  // ~14px screen-space hit target so handles stay easy to grab at any zoom
+  const pad = 14 / zoom
   const centers = handleCenters(b)
+  let best: HandleId | null = null
+  let bestDist = Infinity
   for (const [id, c] of Object.entries(centers) as [HandleId, { x: number; y: number }][]) {
-    if (Math.abs(p.x - c.x) <= pad && Math.abs(p.y - c.y) <= pad) return id
+    const d = Math.hypot(p.x - c.x, p.y - c.y)
+    if (d <= pad && d < bestDist) {
+      bestDist = d
+      best = id
+    }
   }
-  return null
+  return best
 }
 
 export function resizeAABB(b: AABB, handle: HandleId, world: { x: number; y: number }): AABB {
