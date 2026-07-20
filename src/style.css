@@ -201,6 +201,51 @@ input {
   color: #fff;
 }
 
+.layer-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.layer-btn {
+  background: transparent;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.layer-btn:hover {
+  background: #34353d;
+  color: #e5e7eb;
+}
+
+.layer-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.layer-btns button {
+  background: #2a2b31;
+  border: 1px solid #3a3b42;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.layer-btns button:hover {
+  background: #34353d;
+}
+
+.stylebar input[type='number']#fontSize {
+  width: 48px;
+}
+
 .props {
   color: #d4d4d8;
 }

@@ -88,6 +88,22 @@ export class Document {
     this.notify()
   }
 
+  bringToFront(id: string): void {
+    const i = this.nodes.findIndex((n) => n.id === id)
+    if (i < 0 || i >= this.nodes.length - 1) return
+    const [node] = this.nodes.splice(i, 1)
+    this.nodes.push(node)
+    this.notify()
+  }
+
+  sendToBack(id: string): void {
+    const i = this.nodes.findIndex((n) => n.id === id)
+    if (i <= 0) return
+    const [node] = this.nodes.splice(i, 1)
+    this.nodes.unshift(node)
+    this.notify()
+  }
+
   replaceAll(nodes: CanvasNode[], selectedIds: string[]): void {
     this.nodes = nodes.map(cloneNode)
     this.selectedIds = new Set(selectedIds)

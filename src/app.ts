@@ -23,6 +23,7 @@ export function mountApp(root: HTMLElement): void {
           <label>Fill <input type="color" id="fill" value="#3b82f6" /></label>
           <label>Stroke <input type="color" id="stroke" value="#93c5fd" /></label>
           <label>Width <input type="number" id="strokeWidth" min="0" max="64" value="2" /></label>
+          <label>Font <input type="number" id="fontSize" min="8" max="256" value="24" /></label>
           <button type="button" id="undo" title="Ctrl+Z">Undo</button>
           <button type="button" id="redo" title="Ctrl+Shift+Z">Redo</button>
         </div>
@@ -41,7 +42,7 @@ export function mountApp(root: HTMLElement): void {
             <h2>Properties</h2>
             <div id="props" class="props">Nothing selected</div>
           </section>
-          <p class="hint">Space+drag pan · Wheel zoom · Shift 비율고정 · Shift brush 직선 · Del delete</p>
+          <p class="hint">Space 팬 · Wheel 줌 · Shift 비율 · [ ] 레이어 · Ctrl+[ ] 맨앞/뒤</p>
         </aside>
       </div>
     </div>
@@ -56,6 +57,7 @@ export function mountApp(root: HTMLElement): void {
   const fillInput = root.querySelector<HTMLInputElement>('#fill')!
   const strokeInput = root.querySelector<HTMLInputElement>('#stroke')!
   const widthInput = root.querySelector<HTMLInputElement>('#strokeWidth')!
+  const fontSizeInput = root.querySelector<HTMLInputElement>('#fontSize')!
 
   for (const t of TOOLS) {
     const btn = document.createElement('button')
@@ -86,6 +88,12 @@ export function mountApp(root: HTMLElement): void {
   widthInput.addEventListener('change', () => {
     editor.setStyle({ strokeWidth: Number(widthInput.value) || 0 })
   })
+  fontSizeInput.addEventListener('input', () => {
+    editor.style = { ...editor.style, fontSize: Number(fontSizeInput.value) || 24 }
+  })
+  fontSizeInput.addEventListener('change', () => {
+    editor.setStyle({ fontSize: Number(fontSizeInput.value) || 24 })
+  })
   root.querySelector('#undo')!.addEventListener('click', () => editor.undo())
   root.querySelector('#redo')!.addEventListener('click', () => editor.redo())
 
@@ -103,7 +111,7 @@ export function mountApp(root: HTMLElement): void {
 
   function renderLayers(): void {
     layersEl.innerHTML = ''
-    // Top of list = top of stack
+    // Top of list = top of stack (rendered last = on top)
     const nodes = [...editor.doc.nodes].reverse()
     for (const n of nodes) {
       const li = document.createElement('li')
@@ -111,6 +119,10 @@ export function mountApp(root: HTMLElement): void {
       li.innerHTML = `
         <button type="button" class="vis" title="Visibility">${n.visible ? '●' : '○'}</button>
         <button type="button" class="name">${escapeHtml(n.name)}</button>
+        <div class="layer-actions">
+          <button type="button" class="layer-btn" title="앞으로" data-act="up">↑</button>
+          <button type="button" class="layer-btn" title="뒤로" data-act="down">↓</button>
+        </div>
       `
       li.querySelector('.vis')!.addEventListener('click', (e) => {
         e.stopPropagation()
@@ -121,6 +133,16 @@ export function mountApp(root: HTMLElement): void {
       li.querySelector('.name')!.addEventListener('click', () => {
         editor.doc.setSelection([n.id])
         refreshUi()
+      })
+      li.querySelector('[data-act="up"]')!.addEventListener('click', (e) => {
+        e.stopPropagation()
+        editor.doc.setSelection([n.id])
+        editor.layerForward()
+      })
+      li.querySelector('[data-act="down"]')!.addEventListener('click', (e) => {
+        e.stopPropagation()
+        editor.doc.setSelection([n.id])
+        editor.layerBackward()
       })
       layersEl.appendChild(li)
     }
@@ -138,6 +160,13 @@ export function mountApp(root: HTMLElement): void {
     }
     const n = sel[0]
     const b = nodeBounds(n)
+    const textFields =
+      n.type === 'text'
+        ? `
+        <label>Font <input data-k="fontSize" type="number" min="8" max="256" value="${n.fontSize}" /></label>
+        <label>Text <input data-k="text" value="${escapeAttr(n.text)}" /></label>
+      `
+        : ''
     propsEl.innerHTML = `
       <div class="prop-grid">
         <label>Name <input data-k="name" value="${escapeAttr(n.name)}" /></label>
@@ -145,6 +174,13 @@ export function mountApp(root: HTMLElement): void {
         <label>Y <input data-k="y" type="number" value="${Math.round(b.y)}" /></label>
         <label>W <input data-k="w" type="number" value="${Math.round(b.w)}" /></label>
         <label>H <input data-k="h" type="number" value="${Math.round(b.h)}" /></label>
+        ${textFields}
+      </div>
+      <div class="layer-btns">
+        <button type="button" data-layer="back" title="맨 뒤 (Ctrl+[)">맨 뒤</button>
+        <button type="button" data-layer="down" title="뒤로 ([)">뒤로</button>
+        <button type="button" data-layer="up" title="앞으로 (])">앞으로</button>
+        <button type="button" data-layer="front" title="맨 앞 (Ctrl+])">맨 앞</button>
       </div>
     `
     propsEl.querySelectorAll('input').forEach((input) => {
@@ -153,6 +189,16 @@ export function mountApp(root: HTMLElement): void {
         editor.history.push()
         if (key === 'name') {
           n.name = (input as HTMLInputElement).value
+        } else if (key === 'text' && n.type === 'text') {
+          n.text = (input as HTMLInputElement).value || 'Text'
+          const metrics = measureText(n.text, n.fontSize)
+          n.w = Math.max(40, metrics.w)
+          n.h = Math.max(n.fontSize, metrics.h)
+        } else if (key === 'fontSize' && n.type === 'text') {
+          n.fontSize = Math.max(8, Number((input as HTMLInputElement).value) || 24)
+          const metrics = measureText(n.text, n.fontSize)
+          n.w = Math.max(40, metrics.w)
+          n.h = Math.max(n.fontSize, metrics.h)
         } else {
           const v = Number((input as HTMLInputElement).value)
           applyProp(n, key, v)
@@ -161,6 +207,12 @@ export function mountApp(root: HTMLElement): void {
         refreshUi()
       })
     })
+    propsEl.querySelector('[data-layer="up"]')!.addEventListener('click', () => editor.layerForward())
+    propsEl.querySelector('[data-layer="down"]')!.addEventListener('click', () => editor.layerBackward())
+    propsEl.querySelector('[data-layer="front"]')!.addEventListener('click', () => editor.layerToFront())
+    propsEl.querySelector('[data-layer="back"]')!.addEventListener('click', () => editor.layerToBack())
+
+    if (n.type === 'text') fontSizeInput.value = String(n.fontSize)
   }
 
   function openTextEditor(node: TextNode): void {

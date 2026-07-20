@@ -144,6 +144,53 @@ export class Editor {
     this.hooks.onUiRefresh?.()
   }
 
+  layerForward(): void {
+    this.moveLayers('forward')
+  }
+
+  layerBackward(): void {
+    this.moveLayers('backward')
+  }
+
+  layerToFront(): void {
+    this.moveLayers('front')
+  }
+
+  layerToBack(): void {
+    this.moveLayers('back')
+  }
+
+  private moveLayers(dir: 'forward' | 'backward' | 'front' | 'back'): void {
+    if (this.doc.selectedIds.size === 0) return
+    this.history.push()
+    const ids = [...this.doc.selectedIds]
+    const indices = ids
+      .map((id) => this.doc.nodes.findIndex((n) => n.id === id))
+      .filter((i) => i >= 0)
+
+    if (dir === 'forward') {
+      indices.sort((a, b) => b - a)
+      for (const i of indices) {
+        const id = this.doc.nodes[i]?.id
+        if (id) this.doc.bringForward(id)
+      }
+    } else if (dir === 'backward') {
+      indices.sort((a, b) => a - b)
+      for (const i of indices) {
+        const id = this.doc.nodes[i]?.id
+        if (id) this.doc.sendBackward(id)
+      }
+    } else if (dir === 'front') {
+      indices.sort((a, b) => a - b)
+      for (const id of ids) this.doc.bringToFront(id)
+    } else {
+      indices.sort((a, b) => b - a)
+      for (const id of ids) this.doc.sendToBack(id)
+    }
+    this.doc.notify()
+    this.hooks.onUiRefresh?.()
+  }
+
   private bind(): void {
     const el = this.canvas
     el.addEventListener('pointerdown', this.onPointerDown)
@@ -228,6 +275,19 @@ export class Editor {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault()
       this.deleteSelection()
+      return
+    }
+
+    if (e.key === ']') {
+      e.preventDefault()
+      if (mod) this.layerToFront()
+      else this.layerForward()
+      return
+    }
+    if (e.key === '[') {
+      e.preventDefault()
+      if (mod) this.layerToBack()
+      else this.layerBackward()
       return
     }
 
@@ -462,11 +522,19 @@ export class Editor {
       // Single box-like node: write bounds directly (more stable than scale map)
       if (this.doc.selected.length === 1) {
         const n = this.doc.selected[0]
-        if (n.type === 'rect' || n.type === 'ellipse' || n.type === 'text') {
+        if (n.type === 'rect' || n.type === 'ellipse') {
           n.x = snapped.x
           n.y = snapped.y
           n.w = snapped.w
           n.h = snapped.h
+        } else if (n.type === 'text') {
+          const o = this.drag.origins.get(n.id) as TextNode | undefined
+          const scale = snapped.h / Math.max(1, sh)
+          n.x = snapped.x
+          n.y = snapped.y
+          n.w = snapped.w
+          n.h = snapped.h
+          if (o) n.fontSize = Math.max(8, Math.round(o.fontSize * scale))
         } else {
           const o = this.drag.origins.get(n.id)
           if (o) applyResizeFromOrigin(n, o, this.drag.startBounds, snapped, sx, sy)
