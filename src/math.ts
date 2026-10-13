@@ -49,3 +49,47 @@ export function constrainAxis(origin: Vec2, point: Vec2): Vec2 {
   if (dx >= dy) return { x: point.x, y: origin.y }
   return { x: origin.x, y: point.y }
 }
+
+export type ParsedColor = { hex: string; alpha: number }
+
+/** Parse #rgb/#rrggbb/#rrggbbaa or rgb()/rgba() into hex + alpha (0–100). */
+export function parseColor(input: string): ParsedColor {
+  const s = input.trim()
+  if (s === 'transparent') return { hex: '#000000', alpha: 0 }
+
+  const hexMatch = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i)
+  if (hexMatch) {
+    let h = hexMatch[1]
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+    if (h.length === 6) return { hex: `#${h.toLowerCase()}`, alpha: 100 }
+    const rgb = h.slice(0, 6).toLowerCase()
+    const a = Math.round((parseInt(h.slice(6, 8), 16) / 255) * 100)
+    return { hex: `#${rgb}`, alpha: a }
+  }
+
+  const rgba = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i)
+  if (rgba) {
+    const r = clamp(Math.round(Number(rgba[1])), 0, 255)
+    const g = clamp(Math.round(Number(rgba[2])), 0, 255)
+    const b = clamp(Math.round(Number(rgba[3])), 0, 255)
+    const a = rgba[4] === undefined ? 1 : clamp(Number(rgba[4]), 0, 1)
+    return {
+      hex: `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`,
+      alpha: Math.round(a * 100),
+    }
+  }
+
+  return { hex: '#000000', alpha: 100 }
+}
+
+/** Combine #rrggbb + alpha (0–100) into rgba() for canvas drawing. */
+export function colorWithAlpha(hex: string, alphaPct: number): string {
+  const { hex: h } = parseColor(hex)
+  const r = parseInt(h.slice(1, 3), 16)
+  const g = parseInt(h.slice(3, 5), 16)
+  const b = parseInt(h.slice(5, 7), 16)
+  const a = clamp(alphaPct, 0, 100) / 100
+  if (a >= 1) return h
+  if (a <= 0) return 'transparent'
+  return `rgba(${r}, ${g}, ${b}, ${a})`
+}

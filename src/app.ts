@@ -1,4 +1,5 @@
 import { Editor } from './editor'
+import { parseColor } from './math'
 import type { ToolId } from './nodes'
 import type { TextNode } from './nodes'
 import { nodeBounds } from './nodes'
@@ -21,7 +22,9 @@ export function mountApp(root: HTMLElement): void {
         <div class="toolbar" id="toolbar"></div>
         <div class="stylebar">
           <label>Fill <input type="color" id="fill" value="#3b82f6" /></label>
+          <label class="opacity-label">A <input type="range" id="fillOpacity" min="0" max="100" value="100" title="Fill opacity" /></label>
           <label>Stroke <input type="color" id="stroke" value="#93c5fd" /></label>
+          <label class="opacity-label">A <input type="range" id="strokeOpacity" min="0" max="100" value="100" title="Stroke opacity" /></label>
           <label>Width <input type="number" id="strokeWidth" min="0" max="64" value="2" /></label>
           <label>Font <input type="number" id="fontSize" min="8" max="256" value="24" /></label>
           <button type="button" id="undo" title="Ctrl+Z">Undo</button>
@@ -56,6 +59,8 @@ export function mountApp(root: HTMLElement): void {
   const textEditor = root.querySelector<HTMLTextAreaElement>('#textEditor')!
   const fillInput = root.querySelector<HTMLInputElement>('#fill')!
   const strokeInput = root.querySelector<HTMLInputElement>('#stroke')!
+  const fillOpacityInput = root.querySelector<HTMLInputElement>('#fillOpacity')!
+  const strokeOpacityInput = root.querySelector<HTMLInputElement>('#strokeOpacity')!
   const widthInput = root.querySelector<HTMLInputElement>('#strokeWidth')!
   const fontSizeInput = root.querySelector<HTMLInputElement>('#fontSize')!
 
@@ -85,6 +90,18 @@ export function mountApp(root: HTMLElement): void {
   })
   fillInput.addEventListener('change', () => editor.setStyle({ fill: fillInput.value }))
   strokeInput.addEventListener('change', () => editor.setStyle({ stroke: strokeInput.value }))
+  fillOpacityInput.addEventListener('input', () => {
+    editor.style = { ...editor.style, fillOpacity: Number(fillOpacityInput.value) }
+  })
+  strokeOpacityInput.addEventListener('input', () => {
+    editor.style = { ...editor.style, strokeOpacity: Number(strokeOpacityInput.value) }
+  })
+  fillOpacityInput.addEventListener('change', () => {
+    editor.setStyle({ fillOpacity: Number(fillOpacityInput.value) })
+  })
+  strokeOpacityInput.addEventListener('change', () => {
+    editor.setStyle({ strokeOpacity: Number(strokeOpacityInput.value) })
+  })
   widthInput.addEventListener('change', () => {
     editor.setStyle({ strokeWidth: Number(widthInput.value) || 0 })
   })
@@ -213,6 +230,22 @@ export function mountApp(root: HTMLElement): void {
     propsEl.querySelector('[data-layer="back"]')!.addEventListener('click', () => editor.layerToBack())
 
     if (n.type === 'text') fontSizeInput.value = String(n.fontSize)
+    syncStyleFromNode(n)
+  }
+
+  function syncStyleFromNode(n: import('./nodes').CanvasNode): void {
+    if ('fill' in n && typeof n.fill === 'string') {
+      const f = parseColor(n.fill)
+      fillInput.value = f.hex
+      fillOpacityInput.value = String(f.alpha)
+      editor.style = { ...editor.style, fill: f.hex, fillOpacity: f.alpha }
+    }
+    if ('stroke' in n && typeof n.stroke === 'string') {
+      const s = parseColor(n.stroke)
+      strokeInput.value = s.hex
+      strokeOpacityInput.value = String(s.alpha)
+      editor.style = { ...editor.style, stroke: s.hex, strokeOpacity: s.alpha }
+    }
   }
 
   function openTextEditor(node: TextNode): void {

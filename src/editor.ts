@@ -4,6 +4,7 @@ import { snapAABB, type Guide } from './guides'
 import { History } from './history'
 import { hitTestTop } from './hitTest'
 import {
+  colorWithAlpha,
   constrainAxis,
   normalizeRect,
   snap,
@@ -29,6 +30,10 @@ import { handleCenters, hitHandle, resizeAABB, Renderer, type HandleId } from '.
 export type AppStyle = {
   fill: string
   stroke: string
+  /** 0–100 */
+  fillOpacity: number
+  /** 0–100 */
+  strokeOpacity: number
   strokeWidth: number
   fontSize: number
 }
@@ -70,8 +75,18 @@ export class Editor {
   style: AppStyle = {
     fill: '#3b82f6',
     stroke: '#93c5fd',
+    fillOpacity: 100,
+    strokeOpacity: 100,
     strokeWidth: 2,
     fontSize: 24,
+  }
+
+  fillColor(): string {
+    return colorWithAlpha(this.style.fill, this.style.fillOpacity)
+  }
+
+  strokeColor(): string {
+    return colorWithAlpha(this.style.stroke, this.style.strokeOpacity)
   }
 
   spaceDown = false
@@ -106,16 +121,25 @@ export class Editor {
     const selected = this.doc.selected
     if (selected.length) {
       this.history.push()
+      const fillChanged =
+        partial.fill !== undefined || partial.fillOpacity !== undefined
+      const strokeChanged =
+        partial.stroke !== undefined || partial.strokeOpacity !== undefined
+      const fill = this.fillColor()
+      const stroke = this.strokeColor()
       for (const n of selected) {
-        if ('fill' in n && partial.fill !== undefined) (n as RectNode).fill = partial.fill
-        if ('stroke' in n && partial.stroke !== undefined) {
-          ;(n as RectNode | LineNode | BrushNode).stroke = partial.stroke
+        if (fillChanged) {
+          if (n.type === 'rect' || n.type === 'ellipse' || n.type === 'text') n.fill = fill
+        }
+        if (strokeChanged) {
+          if (n.type === 'rect' || n.type === 'ellipse' || n.type === 'line' || n.type === 'brush') {
+            n.stroke = stroke
+          }
         }
         if ('strokeWidth' in n && partial.strokeWidth !== undefined) {
           ;(n as RectNode | LineNode | BrushNode).strokeWidth = partial.strokeWidth
         }
         if (n.type === 'text' && partial.fontSize !== undefined) n.fontSize = partial.fontSize
-        if (n.type === 'text' && partial.fill !== undefined) n.fill = partial.fill
       }
       this.doc.notify()
     }
@@ -374,7 +398,10 @@ export class Editor {
         h: 36,
         text: 'Text',
         fontSize: this.style.fontSize,
-        fill: this.style.fill === '#3b82f6' ? '#e5e7eb' : this.style.fill,
+        fill:
+          this.style.fill === '#3b82f6'
+            ? colorWithAlpha('#e5e7eb', this.style.fillOpacity)
+            : this.fillColor(),
       }
       this.doc.addNode(node)
       this.setTool('select')
@@ -391,7 +418,7 @@ export class Editor {
         type: 'brush',
         visible: true,
         points: [{ ...world }],
-        stroke: this.style.stroke,
+        stroke: this.strokeColor(),
         strokeWidth: Math.max(1, this.style.strokeWidth),
       }
       this.doc.addNode(node, true)
@@ -569,8 +596,8 @@ export class Editor {
         type: this.drag.kind === 'create-rect' ? 'rect' : 'ellipse',
         visible: true,
         ...box,
-        fill: this.style.fill,
-        stroke: this.style.stroke,
+        fill: this.fillColor(),
+        stroke: this.strokeColor(),
         strokeWidth: this.style.strokeWidth,
       }
       this.renderer.draft = draft
@@ -590,7 +617,7 @@ export class Editor {
         y1: this.drag.start.y,
         x2: end.x,
         y2: end.y,
-        stroke: this.style.stroke,
+        stroke: this.strokeColor(),
         strokeWidth: this.style.strokeWidth,
       }
       this.renderer.draft = draft
@@ -694,7 +721,6 @@ export class Editor {
     if (this.drag.kind === 'brush') {
       this.history.endGesture()
       this.drag = { kind: 'none' }
-      this.setTool('select')
       this.hooks.onUiRefresh?.()
     }
   }
