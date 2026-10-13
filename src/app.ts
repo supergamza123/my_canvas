@@ -45,7 +45,7 @@ export function mountApp(root: HTMLElement): void {
             <h2>Properties</h2>
             <div id="props" class="props">Nothing selected</div>
           </section>
-          <p class="hint">Space 팬 · Wheel 줌 · Shift 비율 · [ ] 레이어 · Ctrl+[ ] 맨앞/뒤</p>
+          <p class="hint">Space 팬 · Wheel 줌 · Esc 선택해제 · Shift 비율 · [ ] 레이어</p>
         </aside>
       </div>
     </div>

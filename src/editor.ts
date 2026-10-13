@@ -296,6 +296,17 @@ export class Editor {
 
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      this.doc.clearSelection()
+      this.renderer.draft = null
+      this.renderer.guides = []
+      this.drag = { kind: 'none' }
+      this.hooks.onUiRefresh?.()
+      this.renderer.mark()
+      return
+    }
+
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault()
       this.deleteSelection()
@@ -411,6 +422,8 @@ export class Editor {
     }
 
     if (tool === 'brush') {
+      // Paint-only: never select the stroke (Figma/paint-like)
+      this.doc.clearSelection()
       this.history.beginGesture()
       const node: BrushNode = {
         id: nextId('b'),
@@ -421,7 +434,7 @@ export class Editor {
         stroke: this.strokeColor(),
         strokeWidth: Math.max(1, this.style.strokeWidth),
       }
-      this.doc.addNode(node, true)
+      this.doc.addNode(node, false)
       this.drag = { kind: 'brush', nodeId: node.id, origin: world }
       this.hooks.onUiRefresh?.()
     }
