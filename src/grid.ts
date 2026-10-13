@@ -10,8 +10,8 @@ export function drawGrid(
   const z = camera.zoom
   if (z < 0.4) return
 
-  const step = z >= 8 ? 1 : z >= 2 ? 8 : 32
-  const majorEvery = step === 1 ? 8 : step === 8 ? 4 : 4
+  const step = z >= 8 ? 1 : z >= 2 ? 5 : 25
+  const majorEvery = 5
 
   const topLeft = camera.screenToWorld(0, 0)
   const bottomRight = camera.screenToWorld(width, height)
