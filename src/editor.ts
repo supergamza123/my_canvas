@@ -63,7 +63,7 @@ type DragMode =
     }
   | { kind: 'create-rect' | 'create-ellipse'; start: Vec2 }
   | { kind: 'create-line'; start: Vec2 }
-  | { kind: 'brush'; nodeId: string; origin: Vec2 }
+  | { kind: 'brush'; origin: Vec2 }
 
 export class Editor {
   readonly camera = new Camera()
@@ -110,6 +110,14 @@ export class Editor {
 
   setTool(tool: ToolId): void {
     this.tool = tool
+    // Paint tools: clear selection chrome so strokes don't look "selected"
+    if (tool === 'brush') {
+      this.doc.clearSelection()
+      this.renderer.showSelection = false
+    } else {
+      this.renderer.showSelection = true
+    }
+    this.renderer.mark()
     this.hooks.onToolChange?.(tool)
     this.updateCursor()
     this.hooks.onUiRefresh?.()
@@ -422,21 +430,22 @@ export class Editor {
     }
 
     if (tool === 'brush') {
-      // Paint-only: never select the stroke (Figma/paint-like)
+      // Draft-only while painting; commit unselected on pointerup
       this.doc.clearSelection()
+      this.renderer.showSelection = false
       this.history.beginGesture()
-      const node: BrushNode = {
-        id: nextId('b'),
-        name: defaultName('brush', this.countType('brush')),
+      const draft: BrushNode = {
+        id: '__brush_draft',
+        name: '',
         type: 'brush',
         visible: true,
         points: [{ ...world }],
         stroke: this.strokeColor(),
         strokeWidth: Math.max(1, this.style.strokeWidth),
       }
-      this.doc.addNode(node, false)
-      this.drag = { kind: 'brush', nodeId: node.id, origin: world }
-      this.hooks.onUiRefresh?.()
+      this.renderer.draft = draft
+      this.drag = { kind: 'brush', origin: world }
+      this.renderer.mark()
     }
   }
 
@@ -639,17 +648,17 @@ export class Editor {
     }
 
     if (this.drag.kind === 'brush') {
-      const node = this.doc.getNode(this.drag.nodeId) as BrushNode | undefined
-      if (!node || node.type !== 'brush') return
+      const draft = this.renderer.draft
+      if (!draft || draft.type !== 'brush') return
       let p = world
       if (this.shiftDown) {
         p = constrainAxis(this.drag.origin, world)
-        node.points = [node.points[0], p]
+        draft.points = [draft.points[0], p]
       } else {
-        const last = node.points[node.points.length - 1]
-        if (!last || last.x !== p.x || last.y !== p.y) node.points.push(p)
+        const last = draft.points[draft.points.length - 1]
+        if (!last || last.x !== p.x || last.y !== p.y) draft.points.push(p)
       }
-      this.doc.notify()
+      this.renderer.mark()
     }
   }
 
@@ -732,9 +741,22 @@ export class Editor {
     }
 
     if (this.drag.kind === 'brush') {
+      const draft = this.renderer.draft
+      this.renderer.draft = null
+      if (draft && draft.type === 'brush' && draft.points.length >= 1) {
+        const node: BrushNode = {
+          ...draft,
+          id: nextId('b'),
+          name: defaultName('brush', this.countType('brush')),
+          points: draft.points.map((p) => ({ ...p })),
+        }
+        this.doc.addNode(node, false)
+      }
       this.history.endGesture()
       this.drag = { kind: 'none' }
+      this.renderer.showSelection = this.tool !== 'brush'
       this.hooks.onUiRefresh?.()
+      this.renderer.mark()
     }
   }
 }

@@ -14,6 +14,8 @@ export class Renderer {
   needsRedraw = true
   guides: Guide[] = []
   draft: CanvasNode | null = null
+  /** When false, selection chrome is not drawn (e.g. brush paint mode). */
+  showSelection = true
   private raf = 0
   private canvas: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D
@@ -85,11 +87,16 @@ export class Renderer {
       drawNode(ctx, node)
     }
 
-    if (this.draft) drawNode(ctx, this.draft, true)
+    if (this.draft) {
+      // Brush draft paints solid; shape drafts stay slightly ghosted
+      drawNode(ctx, this.draft, this.draft.type !== 'brush')
+    }
 
-    const selected = doc.selected.filter((n) => n.visible)
-    const bounds = selectionBounds(selected)
-    if (bounds) drawSelection(ctx, bounds, camera.zoom)
+    if (this.showSelection) {
+      const selected = doc.selected.filter((n) => n.visible)
+      const bounds = selectionBounds(selected)
+      if (bounds) drawSelection(ctx, bounds, camera.zoom)
+    }
 
     for (const g of this.guides) {
       ctx.beginPath()
